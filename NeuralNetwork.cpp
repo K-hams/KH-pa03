@@ -9,37 +9,40 @@ using namespace std;
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::eval() {
-    //stub
+    //set evaluating member to true
+    evaluating = true;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::train() {
-    //stub
+    //set evaluating member to false
+    evaluating = false;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setLearningRate(double lr) {
-    //stub
+    learningRate = lr;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setInputNodeIds(std::vector<int> inputNodeIds) {
-    //stub
+    inputNodeIds(inputNodeIds.begin(),inputNodeIds.end());
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setOutputNodeIds(std::vector<int> outputNodeIds) {
-    //stub
+    outputNodeIds(outputNodeIds.begin(),outputNodeIds.end());
+    
 }
 
 // STUDENT TODO: IMPLEMENT
 vector<int> NeuralNetwork::getInputNodeIds() const {
-    return vector<int>(); //stub
+    return inputNodeIds; //stub
 }
 
 // STUDENT TODO: IMPLEMENT
 vector<int> NeuralNetwork::getOutputNodeIds() const {
-    return vector<int>(); //stub
+    return outputNodeIds; //stub
 }
 
 // STUDENT TODO: IMPLEMENT
@@ -55,7 +58,40 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
         return vector<double>();
     }
 
+    //loading
+    for (int i = 0; i < inputNodesIds.size();i++){
+        nodes[inputNodesIds[i]]->postActivationValue = input[i];
+    }
+
     // BFT implementation goes here.
+    vector<bool> visited(input.size(), false);
+    queue<int> q;
+
+    q.push(input[0]);
+    visited[0] = true;
+
+    while (!queue.empty()){
+        bool isInput = false
+        int u = q.front(); q.pop();
+
+        for (auto v: inputNodesIds){
+            if (v == u){
+                isInput = true;
+                break;
+            }
+        }
+
+        if (!isInput){
+            visitPredictNode(u);
+        }
+
+        for (auto& p : adjacencyList[u]){
+            visitPredictNeighbor(p.second);
+            q.push(p.second.dest);
+        }
+
+    }
+
     // Note: before traversal begins, each input value in `input` must be loaded into
     // the corresponding input node's postActivationValue. Input nodes are not activated —
     // their value is passed forward directly.
@@ -81,7 +117,11 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
 }
 // STUDENT TODO: IMPLEMENT
 bool NeuralNetwork::contribute(double y, double p) {
+    contributions.clear();
 
+    for (auto v: inputNodesIds){
+        contribute(id, y, p);
+    }
     // DFT implementation goes here.
     // This function initiates the recursion by calling the recursive helper
     // starting from each input layer node.
@@ -112,15 +152,40 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
         // Seeds the backward pass with the initial error signal.
         // You do not need to understand this derivation.
         outgoingContribution = -1 * ((y - p) / (p * (1 - p)));
+        visitContributeNode(nodeId, outgoingContribution);
+        contributions[nodeId] = outgoingContribution;
+        return outgoingContribution;
     }
 
+    for (auto& v: adjacencyList[nodeId]){
+        Connection& c = v.second;
+        incomingContribution = contribute(c.dest, y, p);
+        visitContributeNeighbor(c, incomingContribution, outgoingContribution);
+    }
+
+    visitContributeNode(nodeId, outgoingContributiion);
     // Before returning, store outgoingContribution in the contributions map.
+    contributions[nodeId] = outgoingContribution;
 
     return outgoingContribution;
 }
 // STUDENT TODO: IMPLEMENT
 bool NeuralNetwork::update() {
     // apply the derivative contributions
+    for (int i = 0; i < nodes.sie(); i++){
+        NodeInfo* node = nodes[i];
+        node->bias -= learningRate * (node->delta/batchSize);
+        node->delta = 0;
+
+        for (auto& v: adjacencyList[i]){
+            Connection& c = pair.second;
+            c.weight -= learningRate * (c.delta / batchSize);
+            c.delta = 0;
+
+        }
+
+    
+    }
 
     // traverse the graph in anyway you want. 
     // Each node has a delta term 

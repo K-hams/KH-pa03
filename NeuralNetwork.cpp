@@ -1,6 +1,7 @@
 // includes
 #include "NeuralNetwork.hpp"
 #include "Trace.hpp"
+#include <unordered_set>
 using namespace std;
 
 
@@ -26,12 +27,12 @@ void NeuralNetwork::setLearningRate(double lr) {
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setInputNodeIds(std::vector<int> inputNodeIds) {
-    inputNodeIds(inputNodeIds.begin(),inputNodeIds.end());
+    this->inputNodeIds = inputNodeIds;
 }
 
 // STUDENT TODO: IMPLEMENT
 void NeuralNetwork::setOutputNodeIds(std::vector<int> outputNodeIds) {
-    outputNodeIds(outputNodeIds.begin(),outputNodeIds.end());
+    this->outputNodeIds = outputNodeIds;
     
 }
 
@@ -59,35 +60,42 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
     }
 
     //loading
-    for (int i = 0; i < inputNodesIds.size();i++){
-        nodes[inputNodesIds[i]]->postActivationValue = input[i];
+    for (int i = 0; i < inputNodeIds.size();i++){
+        nodes[inputNodeIds[i]]->postActivationValue = input[i];
     }
 
     // BFT implementation goes here.
-    vector<bool> visited(input.size(), false);
+    unordered_set<int> visited;
     queue<int> q;
+    for (int id: inputNodeIds){
+        q.push(id);
+        visited.insert(id);
+    }
 
-    q.push(input[0]);
-    visited[0] = true;
+    while (!q.empty()){
+        bool isInput = false;
+        int vId = q.front();
+         q.pop();
 
-    while (!queue.empty()){
-        bool isInput = false
-        int u = q.front(); q.pop();
-
-        for (auto v: inputNodesIds){
-            if (v == u){
+        for (auto v: inputNodeIds){
+            if (v == vId){
                 isInput = true;
                 break;
             }
         }
 
         if (!isInput){
-            visitPredictNode(u);
+            visitPredictNode(vId);
         }
 
-        for (auto& p : adjacencyList[u]){
+        for (auto& p : adjacencyList[vId]){
             visitPredictNeighbor(p.second);
-            q.push(p.second.dest);
+            int dest = p.second.dest;
+
+            if (!visited.count(dest)) {
+                visited.insert(dest);
+                q.push(dest);
+            }
         }
 
     }
@@ -119,8 +127,12 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
 bool NeuralNetwork::contribute(double y, double p) {
     contributions.clear();
 
-    for (auto v: inputNodesIds){
-        contribute(id, y, p);
+    for (auto v: inputNodeIds){
+        for (auto& kv : adjacencyList[v]) {
+            Connection& c = kv.second;
+            double incoming = contribute(c.dest, y, p);
+            visitContributeNeighbor(c, incoming, contributions[v]);
+        }
     }
     // DFT implementation goes here.
     // This function initiates the recursion by calling the recursive helper
@@ -130,15 +142,18 @@ bool NeuralNetwork::contribute(double y, double p) {
     // The contributions map acts as your "visited" set and also stores each node's
     // computed contribution so it is not recomputed if reached by multiple paths.
 
-
-    flush();
-
     return true;
 }
 // STUDENT TODO: IMPLEMENT
 double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
     visitContributeStart(nodeId); // don't remove this line, used for visualization
     // incomingContribution: the error signal returned by a recursive call on a neighbor.
+
+     if (contributions.count(nodeId)) {
+        return contributions.at(nodeId);
+    }
+
+
     double incomingContribution = 0;
     // outgoingContribution: built up from this node's neighbors, then scaled by
     // this node's activation derivative before being returned to the previous layer.
@@ -163,7 +178,7 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
         visitContributeNeighbor(c, incomingContribution, outgoingContribution);
     }
 
-    visitContributeNode(nodeId, outgoingContributiion);
+    visitContributeNode(nodeId, outgoingContribution);
     // Before returning, store outgoingContribution in the contributions map.
     contributions[nodeId] = outgoingContribution;
 
@@ -172,13 +187,13 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
 // STUDENT TODO: IMPLEMENT
 bool NeuralNetwork::update() {
     // apply the derivative contributions
-    for (int i = 0; i < nodes.sie(); i++){
+    for (int i = 0; i < nodes.size(); i++){
         NodeInfo* node = nodes[i];
         node->bias -= learningRate * (node->delta/batchSize);
         node->delta = 0;
 
         for (auto& v: adjacencyList[i]){
-            Connection& c = pair.second;
+            Connection& c = v.second;
             c.weight -= learningRate * (c.delta / batchSize);
             c.delta = 0;
 
